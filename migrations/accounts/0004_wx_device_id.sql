@@ -1,0 +1,11 @@
+-- Persist a per-account ACCS device_id. Server-side sticky binding observed:
+-- once a (uid, device_id) pair gets flagged into "cycling" state, it never
+-- recovers. We need:
+--   1. Each account has its own unique device_id (no shared/derived from uid)
+--   2. The device_id is regenerable: when an account ends up cycling, the
+--      operator can reset this column (or hit a regenerate endpoint) so the
+--      next reconnect uses a fresh device identity.
+--
+-- A blank value means "not yet assigned" — the live worker generates a new
+-- random UUID and writes it back on first connect.
+ALTER TABLE accounts ADD COLUMN wx_device_id TEXT DEFAULT '';

@@ -1,0 +1,8 @@
+{
+  "expires_in": 86400,
+  "user": {
+    "username": "compat-admin",
+    "role": "admin",
+    "legacy": false
+  }
+}

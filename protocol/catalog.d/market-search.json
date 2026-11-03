@@ -1,0 +1,44 @@
+{
+  "entries": [
+    {
+      "name": "SEARCH_APP",
+      "opcode": 30001,
+      "gateway": "app",
+      "api": "mtop.taobao.idlemtopsearch.search",
+      "version": "1.0",
+      "method": "POST",
+      "headersProfile": "app",
+      "paramsTemplate": {}
+    },
+    {
+      "name": "SEARCH_PC",
+      "opcode": 30002,
+      "gateway": "h5",
+      "api": "mtop.taobao.idlemtopsearch.pc.search",
+      "version": "1.0",
+      "method": "POST",
+      "headersProfile": "default_h5",
+      "paramsTemplate": {}
+    },
+    {
+      "name": "SEARCH_WX",
+      "opcode": 30003,
+      "gateway": "wx",
+      "api": "mtop.taobao.idlemtopsearch.wx.search",
+      "version": "1.0",
+      "method": "POST",
+      "headersProfile": "wx",
+      "paramsTemplate": {}
+    },
+    {
+      "name": "SEARCH_SHADE",
+      "opcode": 30004,
+      "gateway": "h5",
+      "api": "mtop.taobao.idlemtopsearch.search.shade",
+      "version": "3.0",
+      "method": "POST",
+      "headersProfile": "default_h5",
+      "paramsTemplate": {}
+    }
+  ]
+}

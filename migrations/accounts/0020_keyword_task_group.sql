@@ -1,0 +1,2 @@
+ALTER TABLE keywords
+ADD COLUMN task_group_id TEXT NOT NULL DEFAULT '';

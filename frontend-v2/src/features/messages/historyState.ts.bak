@@ -1,0 +1,182 @@
+// @ts-nocheck
+import { normalizeSessionTimestamp } from './sessionState'
+
+function messageKey(message) {
+  return message?.messageId || `${message?.version || 0}_${message?.ts || 0}_${message?.preview || ''}`
+}
+
+function normalizeHistoryMessage(message = {}) {
+  const normalizedTs = normalizeSessionTimestamp(message?.ts) || normalizeSessionTimestamp(message?.version)
+  return normalizedTs
+    ? {
+        ...message,
+        ts: normalizedTs,
+      }
+    : { ...message }
+}
+
+// Drop optimistic_* placeholders when a real isSelf echo with matching
+// signature (text + imageUrl) arrives within OPTIMISTIC_ECHO_WINDOW_MS.
+// Must run AFTER the messageKey-based merge — optimistic messages have a
+// different messageId than the server-side echo so the basic Map de-dup
+// keeps both around. Without this pass, every outgoing text/image appears
+// twice in the chat panel.
+const OPTIMISTIC_ECHO_WINDOW_MS = 30_000
+function messageSignature(m) {
+  return `${String(m?.text ?? m?.content ?? '')}|${String(m?.imageUrl ?? '')}`
+}
+function dropOptimisticEchoes(messages) {
+  if (!messages || messages.length < 2) return messages
+  // First pass: collect signatures of REAL outgoing messages (any non-optimistic
+  // is_self message that has a "real" id). Used both to drop optimistic
+  // placeholders AND to dedup multiple real echoes of the same send (Xianyu's
+  // ACCS occasionally fans out the same message twice with DIFFERENT
+  // server-side messageIds, which `Map`-by-messageId can't catch).
+  const realIsSelf = messages.filter((m) => {
+    const id = String(m?.messageId || '')
+    if (id.startsWith('optimistic_')) return false
+    return Boolean(m?.isSelf)
+  })
+  if (!realIsSelf.length) return messages
+
+  // Build a multimap signature -> [first-seen-ts]. Second/third copy of the
+  // same signature within the echo window gets dropped.
+  const firstSeenBySig = new Map()
+  const keep = []
+  for (const m of messages) {
+    const id = String(m?.messageId || '')
+    const isOpt = id.startsWith('optimistic_')
+    if (!m?.isSelf && !isOpt) {
+      // Incoming messages aren't subject to optimistic dedup; pass through.
+      keep.push(m)
+      continue
+    }
+    const sig = messageSignature(m)
+    const ts = Number(m?.ts) || 0
+    // Find a real-isSelf message (could be `m` itself) whose signature matches
+    // and whose ts is within the echo window. If `m` is optimistic, look for
+    // a NON-optimistic match. If `m` is a real isSelf, we still need to drop
+    // duplicates of itself.
+    const matched = realIsSelf.find((real) => {
+      if (real === m) return false
+      if (messageSignature(real) !== sig) return false
+      const realTs = Number(real?.ts) || 0
+      return Math.abs(realTs - ts) <= OPTIMISTIC_ECHO_WINDOW_MS
+    })
+    if (!matched) {
+      keep.push(m)
+      continue
+    }
+    if (isOpt) {
+      // Drop optimistic — the real echo will represent it.
+      continue
+    }
+    // Two real isSelf messages with same signature within the window:
+    // keep only the earliest (smallest ts). Common when Xianyu re-pushes the
+    // same message under a slightly different envelope.
+    const matchedTs = Number(matched?.ts) || 0
+    if (ts > matchedTs) {
+      // `matched` is older → keep it (it's already in `keep` or will be).
+      continue
+    }
+    // `m` is older or same → keep this one and drop matched later.
+    keep.push(m)
+  }
+  // After the loop, `keep` may contain BOTH copies if neither was older than
+  // the other (same ts). Final pass: dedup by signature when isSelf, keeping
+  // the one with the longer messageId (server-side ids are longer than empty/
+  // optimistic placeholders).
+  const finalByKey = new Map()
+  const finalOrder = []
+  for (const m of keep) {
+    if (!m?.isSelf) {
+      finalOrder.push(m)
+      continue
+    }
+    const sig = messageSignature(m)
+    const ts = Number(m?.ts) || 0
+    const winKey = `${sig}|${Math.floor(ts / 1000)}` // 1-second bucket
+    if (!finalByKey.has(winKey)) {
+      finalByKey.set(winKey, m)
+      finalOrder.push(m)
+    } else {
+      const existing = finalByKey.get(winKey)
+      const existingId = String(existing?.messageId || '')
+      const newId = String(m?.messageId || '')
+      // Prefer the one with a real (non-optimistic) id; else longer id.
+      const existingScore = existingId.startsWith('optimistic_') ? 0 : existingId.length
+      const newScore = newId.startsWith('optimistic_') ? 0 : newId.length
+      if (newScore > existingScore) {
+        // Replace existing with m in finalOrder.
+        const idx = finalOrder.indexOf(existing)
+        if (idx >= 0) finalOrder[idx] = m
+        finalByKey.set(winKey, m)
+      }
+    }
+  }
+  return finalOrder
+}
+
+function mergeMessageLists(leftMessages = [], rightMessages = []) {
+  const merged = new Map()
+  for (const message of [...leftMessages, ...rightMessages]) {
+    const normalized = normalizeHistoryMessage(message)
+    merged.set(messageKey(normalized), normalized)
+  }
+  const sorted = Array.from(merged.values()).sort((left, right) => {
+    const leftOrder = normalizeSessionTimestamp(left.version) || normalizeSessionTimestamp(left.ts)
+    const rightOrder = normalizeSessionTimestamp(right.version) || normalizeSessionTimestamp(right.ts)
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder
+    }
+    return (normalizeSessionTimestamp(left.ts) || 0) - (normalizeSessionTimestamp(right.ts) || 0)
+  })
+  return dropOptimisticEchoes(sorted)
+}
+
+function toPositiveNumber(value) {
+  const number = Number(value || 0)
+  return Number.isFinite(number) && number > 0 ? number : 0
+}
+
+function minPositive(...values) {
+  const numbers = values.map(toPositiveNumber).filter(Boolean)
+  return numbers.length ? Math.min(...numbers) : 0
+}
+
+function maxPositive(...values) {
+  const numbers = values.map(toPositiveNumber).filter(Boolean)
+  return numbers.length ? Math.max(...numbers) : 0
+}
+
+export function mergeHistoryState(existing = {}, incoming = {}, mode = 'replace') {
+  if (mode === 'older') {
+    return {
+      ...existing,
+      ...incoming,
+      nextCursor: minPositive(existing.nextCursor, incoming.nextCursor),
+      latestCursor: maxPositive(existing.latestCursor, incoming.latestCursor),
+      messages: mergeMessageLists(incoming.messages || [], existing.messages || []),
+    }
+  }
+
+  if (mode === 'refresh') {
+    return {
+      ...existing,
+      ...incoming,
+      nextCursor: minPositive(existing.nextCursor, incoming.nextCursor),
+      latestCursor: maxPositive(existing.latestCursor, incoming.latestCursor),
+      messages: mergeMessageLists(existing.messages || [], incoming.messages || []),
+    }
+  }
+
+  return {
+    ...existing,
+    ...incoming,
+    nextCursor: toPositiveNumber(incoming.nextCursor),
+    latestCursor: maxPositive(incoming.latestCursor),
+    messages: (incoming.messages || []).map((message) => normalizeHistoryMessage(message)),
+  }
+}
+
+/* UNIQUE_TEST_MARKER_DEDUP_2026XYZ */

@@ -1,0 +1,9 @@
+{
+  "type": "connection.connected",
+  "channel": "browser",
+  "user": {
+    "username": "local-app",
+    "role": "admin",
+    "legacy": true
+  }
+}

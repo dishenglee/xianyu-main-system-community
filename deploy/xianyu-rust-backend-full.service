@@ -1,0 +1,22 @@
+[Unit]
+Description=Xianyu Rust Backend Full
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/xianyu-rust-backend-full
+EnvironmentFile=/etc/xianyu-rust-backend-full.env
+Environment=APP_BIND_ADDR=127.0.0.1:3000
+Environment=APP_DATA_DIR=/opt/xianyu-rust-backend-full/data
+Environment=FRONTEND_STATIC_DIR=/opt/xianyu-rust-backend-full/static
+Environment=RUST_LOG=info
+Environment=LIBSQLITE3_SYS_BUNDLED=1
+ExecStart=/opt/xianyu-rust-backend-full/bin/xianyu-rust-backend-full
+Restart=always
+RestartSec=3
+StandardOutput=append:/opt/xianyu-rust-backend-full/logs/app.log
+StandardError=append:/opt/xianyu-rust-backend-full/logs/app.err.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[package]
+name = "linux-udif-maker"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+anyhow = "1.0"
+apple-dmg = "0.5.0"
+fatfs = "0.3.6"
+fscommon = "0.1.1"
+md5 = "0.7.0"

@@ -1,0 +1,81 @@
+{
+  "productName": "鱼管家",
+  "identifier": "shop.gooofish.yuguanjia",
+  "version": "0.1.54",
+  "build": {
+    "beforeDevCommand": "npm --prefix ../frontend-v2 run dev -- --host 127.0.0.1 --port 5188 --strictPort",
+    "devUrl": "http://127.0.0.1:5188",
+    "beforeBuildCommand": "npm --prefix ../frontend-v2 run build",
+    "frontendDist": "../static"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "鱼管家",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "freezePrototype": true,
+      "csp": null
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [],
+      "pubkey": "0000000000000000000000000000000000000000000000000000000000000000",
+      "windows": {
+        "installMode": "quiet"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app", "msi", "nsis"],
+    "publisher": "Disheng",
+    "copyright": "© 2026 Disheng. 保留所有权利",
+    "category": "Productivity",
+    "shortDescription": "闲鱼账号自动化助理",
+    "longDescription": "鱼管家：本地优先的闲鱼账号管理助理，数据留在本机，支持多账号消息、自动回复、订单与卡密管理。",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "dmg": {
+        "background": null,
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        },
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        }
+      }
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "allowDowngrades": true,
+      "nsis": {
+        "displayLanguageSelector": false,
+        "languages": ["SimpChinese", "English"]
+      }
+    }
+  }
+}

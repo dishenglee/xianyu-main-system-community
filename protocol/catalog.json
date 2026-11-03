@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "capability": "xianyu-core",
+  "entries": [
+    {
+      "name": "ITEM_MANAGEMENT_QUERY",
+      "opcode": 10031,
+      "gateway": "h5",
+      "api": "mtop.taobao.idle.item.management.query",
+      "version": "1.0",
+      "method": "POST",
+      "headersProfile": "default_h5",
+      "paramsTemplate": {}
+    }
+  ]
+}

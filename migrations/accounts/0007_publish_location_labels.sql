@@ -1,0 +1,2 @@
+ALTER TABLE publish_locations ADD COLUMN name TEXT NOT NULL DEFAULT '';
+ALTER TABLE publish_locations ADD COLUMN address TEXT NOT NULL DEFAULT '';

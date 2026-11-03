@@ -1,0 +1,8 @@
+{
+  "valid": true,
+  "user": {
+    "username": "compat-admin",
+    "role": "admin",
+    "legacy": false
+  }
+}

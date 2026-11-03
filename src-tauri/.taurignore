@@ -1,0 +1,8 @@
+../data/
+../data/**
+**/*.db
+**/*.db-shm
+**/*.db-wal
+../frontend-v2/
+../target/
+**/*.tmp.*

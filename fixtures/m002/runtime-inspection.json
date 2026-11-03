@@ -1,0 +1,15 @@
+{
+  "state_backend": "sqlite",
+  "auth_configured": false,
+  "ready": true,
+  "database_names": [
+    "accounts",
+    "xianyu",
+    "live_state",
+    "notifications"
+  ],
+  "manager_names": [
+    "service_heartbeat",
+    "sqlite_monitor"
+  ]
+}

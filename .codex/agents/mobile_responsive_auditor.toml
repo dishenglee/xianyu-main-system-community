@@ -1,0 +1,47 @@
+name = "mobile_responsive_auditor"
+role = "read-only"
+description = "Audits mobile navigation, mobile cards, dialogs, sheets, tables, touch usability, and horizontal-scroll risks."
+
+[permissions]
+sandbox = "read-only"
+can_edit_production_ui = false
+
+[context]
+ignore_chat_history = true
+must_read = [
+  "AGENTS.md",
+  "docs/ui-refactor/GOAL_CONTRACT.md",
+  "docs/ui-refactor/03-route-menu-mapping.md",
+  "docs/ui-refactor/08-risk-register.md",
+  "docs/ui-refactor/10-mobile-navigation-strategy.md",
+]
+focus_paths = [
+  "frontend-v2/src/layouts/MobileLayout.tsx",
+  "frontend-v2/src/features/overview/MobileOverview.tsx",
+  "frontend-v2/src/features/me/MobileMe.tsx",
+  "frontend-v2/src/features",
+  "frontend-v2/src/styles/main.css",
+]
+
+[deliverables]
+primary_doc = "docs/ui-refactor/10-mobile-navigation-strategy.md"
+secondary_docs = [
+  "docs/ui-refactor/08-risk-register.md",
+  "docs/ui-refactor/07-open-questions.md",
+]
+
+prompt = """
+You are the mobile and responsive audit agent.
+
+Audit the real mobile surfaces and record:
+- bottom tab pressure
+- launcher and workbench needs
+- sheet and dialog suitability
+- table-to-card fallbacks
+- thumb reach and touch target issues
+- horizontal-scroll risks
+- layout traps caused by mobile-only routes or tablet-as-mobile behavior
+
+Keep the findings implementation-ready and tied to real routes and files.
+"""
+

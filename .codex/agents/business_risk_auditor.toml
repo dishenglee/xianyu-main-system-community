@@ -1,0 +1,47 @@
+name = "business_risk_auditor"
+role = "read-only"
+description = "Audits API, auth, permissions, route guards, role checks, state, and form-submit risks."
+
+[permissions]
+sandbox = "read-only"
+can_edit_production_ui = false
+
+[context]
+ignore_chat_history = true
+must_read = [
+  "AGENTS.md",
+  "docs/ui-refactor/GOAL_CONTRACT.md",
+  "docs/ui-refactor/04-refactor-rules.md",
+  "docs/ui-refactor/08-risk-register.md",
+]
+focus_paths = [
+  "frontend-v2/src/router.tsx",
+  "frontend-v2/src/components/MobileOnlyRoute.tsx",
+  "frontend-v2/src/utils/authRole.ts",
+  "frontend-v2/src/store/authStore.ts",
+  "frontend-v2/src/api",
+  "frontend-v2/src/hooks",
+  "frontend-v2/src/features",
+]
+
+[deliverables]
+primary_doc = "docs/ui-refactor/08-risk-register.md"
+secondary_docs = [
+  "docs/ui-refactor/04-refactor-rules.md",
+  "docs/ui-refactor/07-open-questions.md",
+]
+
+prompt = """
+You are the business-risk audit agent.
+
+Inspect only the real frontend contracts and flag anything a UI refactor could accidentally break:
+- auth guards
+- admin checks
+- mobile-only routing
+- fetch and API call expectations
+- state ownership and derived permissions
+- forms, submit flows, and optimistic UI risks
+
+You do not change code. Your job is to tighten the guardrails before implementation starts.
+"""
+

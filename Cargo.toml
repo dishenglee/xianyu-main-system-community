@@ -1,0 +1,74 @@
+[package]
+name = "xianyu-rust-backend-full"
+version = "0.1.54"
+edition = "2021"
+
+[workspace]
+members = [".", "src-tauri", "crates/sealed-protocol-macro"]
+
+[profile.release]
+lto = "thin"
+codegen-units = 16
+debug = 0
+split-debuginfo = "off"
+strip = "symbols"
+panic = "abort"
+
+[dependencies]
+axum = { version = "0.7", features = ["macros", "multipart", "ws"] }
+tokio = { version = "1", features = ["io-util", "macros", "process", "rt-multi-thread", "signal", "sync", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio-rustls", "migrate"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+jsonwebtoken = "9"
+md5 = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "cookies"] }
+multer = "3.1"
+base64 = "0.22"
+flate2 = "1"
+qrcode = { version = "0.14", features = ["image"] }
+sha2 = "0.10"
+hex = "0.4"
+hmac = "0.12"
+ed25519-dalek = "2"
+# QR PNG rendering for `/添加账号` — qrcode's `image` feature emits an
+# `ImageBuffer<Luma<u8>>`, we encode to PNG with `image`'s default PNG codec.
+image = { version = "0.25", default-features = false, features = ["png"] }
+# AES-128-ECB + PKCS7 for OpenClaw CDN image upload (matches openclaw plugin
+# `src/cdn/aes-ecb.ts` — Node's `createCipheriv("aes-128-ecb", ...)`).
+aes = "0.8"
+aes-gcm = "0.10"
+zeroize = "1"
+sealed-protocol-macro = { path = "crates/sealed-protocol-macro" }
+futures-util = "0.3"
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+prost = "0.13"
+rmpv = "1"
+tower-http = { version = "0.6", features = ["fs", "trace", "cors"] }
+tower = { version = "0.5", features = ["util"] }
+# Live numeric-key event parser uses regex to scrape itemId/itemPic out of
+# unstructured root payloads (Python parity, `xianyu_live_client.py:30-31`).
+regex = "1"
+once_cell = "1"
+rand = "0.9"
+uuid = { version = "1", features = ["v4"] }
+urlencoding = "2"
+url = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[dev-dependencies]
+http-body-util = "0.1"
+serde_json = "1"
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+
+[build-dependencies]
+aes-gcm = "0.10"
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+zeroize = "1"

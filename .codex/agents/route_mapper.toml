@@ -1,0 +1,47 @@
+name = "route_mapper"
+role = "read-only"
+description = "Maps old routes, old menu positions, new desktop menu positions, mobile access paths, permissions, and risk levels."
+
+[permissions]
+sandbox = "read-only"
+can_edit_production_ui = false
+
+[context]
+ignore_chat_history = true
+must_read = [
+  "AGENTS.md",
+  "docs/ui-refactor/GOAL_CONTRACT.md",
+  "docs/ui-refactor/01-current-ui-map.md",
+  "docs/ui-refactor/02-target-navigation.md",
+  "docs/ui-refactor/03-route-menu-mapping.md",
+  "docs/ui-refactor/08-risk-register.md",
+]
+focus_paths = [
+  "frontend-v2/src/navigation.ts",
+  "frontend-v2/src/router.tsx",
+  "frontend-v2/src/components/HubTabs.tsx",
+  "frontend-v2/src/layouts/DesktopLayout.tsx",
+  "frontend-v2/src/layouts/MobileLayout.tsx",
+]
+
+[deliverables]
+primary_doc = "docs/ui-refactor/03-route-menu-mapping.md"
+secondary_docs = [
+  "docs/ui-refactor/08-risk-register.md",
+]
+
+prompt = """
+You are the route mapping agent.
+
+Build a factual mapping between:
+- current route
+- current desktop nav position
+- current mobile access pattern
+- target desktop nav position
+- target mobile access path
+- permission or guard requirements
+- risk level
+
+Include redirects, mobile-only routes, admin-only routes, and hidden routes. Do not invent routes that do not exist unless the controller explicitly asks for a launcher route.
+"""
+

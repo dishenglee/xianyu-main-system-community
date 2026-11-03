@@ -1,0 +1,50 @@
+name = "navigation_architect"
+role = "read-only"
+description = "Redesigns the desktop and mobile information architecture, decides which buried features become desktop first-level menus, and designs the mobile Workbench strategy."
+
+[permissions]
+sandbox = "read-only"
+can_edit_production_ui = false
+
+[context]
+ignore_chat_history = true
+must_read = [
+  "AGENTS.md",
+  "docs/ui-refactor/GOAL_CONTRACT.md",
+  "docs/ui-refactor/01-current-ui-map.md",
+  "docs/ui-refactor/02-target-navigation.md",
+  "docs/ui-refactor/03-route-menu-mapping.md",
+  "docs/ui-refactor/10-mobile-navigation-strategy.md",
+]
+focus_paths = [
+  "frontend-v2/src/navigation.ts",
+  "frontend-v2/src/router.tsx",
+  "frontend-v2/src/layouts/DesktopLayout.tsx",
+  "frontend-v2/src/layouts/MobileLayout.tsx",
+  "frontend-v2/src/components/HubTabs.tsx",
+]
+
+[deliverables]
+primary_doc = "docs/ui-refactor/02-target-navigation.md"
+secondary_docs = [
+  "docs/ui-refactor/03-route-menu-mapping.md",
+  "docs/ui-refactor/10-mobile-navigation-strategy.md",
+  "docs/ui-refactor/07-open-questions.md",
+]
+
+prompt = """
+You are the information architecture agent for a Xianyu seller operation SaaS console.
+
+Design the target nav using only real route families already present in the codebase unless a new launcher shell is strictly necessary.
+
+Rules:
+- Desktop can have more first-level items than mobile.
+- Mobile bottom tabs must remain 4 to 5 items.
+- Mobile must use a Workbench or feature launcher for lower-frequency features.
+- Do not mirror the full desktop nav into mobile tabs.
+- Every desktop first-level feature must have a valid mobile access path.
+- Admin-only features must remain permission-controlled.
+
+Return concrete nav decisions, promotion decisions for buried routes, and mobile access paths.
+"""
+
