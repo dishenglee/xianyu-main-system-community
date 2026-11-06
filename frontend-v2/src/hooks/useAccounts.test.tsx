@@ -93,7 +93,7 @@ describe('useAccounts', () => {
     expect(result.current.activeAccounts).toBe(firstActiveAccounts)
   })
 
-  it('does not show cached admin accounts after switching to a user token', async () => {
+  it('keeps one shared local account cache regardless of legacy auth_token storage', async () => {
     getAccountsMock
       .mockResolvedValueOnce([{ uid: 'admin-account', nick: '管理员账号', status: 'active' }])
       .mockResolvedValueOnce([{ uid: 'user-account', nick: '用户账号', status: 'active' }])
@@ -113,28 +113,8 @@ describe('useAccounts', () => {
       await result.current.loadAccounts()
     })
 
-    expect(getAccountsMock).toHaveBeenCalledTimes(2)
-    expect(result.current.accounts.map((account) => account.uid)).toEqual(['user-account'])
-  })
-
-  it('clears mounted account state immediately when auth token changes', async () => {
-    getAccountsMock.mockResolvedValue([{ uid: 'admin-account', nick: '管理员账号', status: 'active' }])
-
-    localStorage.setItem('auth_token', 'admin-token')
-    const { result } = renderHook(() => useAccounts())
-
-    await act(async () => {
-      await result.current.loadAccounts()
-    })
-
+    expect(getAccountsMock).toHaveBeenCalledTimes(1)
     expect(result.current.accounts.map((account) => account.uid)).toEqual(['admin-account'])
-
-    await act(async () => {
-      localStorage.setItem('auth_token', 'user-token')
-      window.dispatchEvent(new Event('xy:authChanged'))
-    })
-
-    await waitFor(() => expect(result.current.accounts).toEqual([]))
   })
 
   it('keeps delete-only accounts visible at the bottom but excludes them from active accounts', async () => {

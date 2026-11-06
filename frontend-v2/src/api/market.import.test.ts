@@ -15,6 +15,11 @@ import {
   updateKeyword,
 } from './market'
 
+vi.mock('./client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./client')>()),
+  emitClientLog: vi.fn(),
+}))
+
 describe('itemImportLink', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -98,15 +103,19 @@ describe('business config API wrappers', () => {
   })
 
   it('unwraps keyword create and update envelopes', async () => {
-    vi.stubGlobal('fetch', vi.fn()
-      .mockResolvedValueOnce({
+    const responses = [
+      {
         ok: true,
         json: async () => ({ status: 'ok', keyword: { id: 7, cookieId: 'uid-1', keyword: '价格', reply: '可以优惠' } }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({ status: 'ok', keyword: { id: 7, cookieId: 'uid-1', keyword: '费用', reply: '按需求报价' } }),
-      }))
+      },
+    ]
+    vi.stubGlobal('fetch', vi.fn((url) => String(url).includes('/api/logs/client-events')
+      ? Promise.resolve({ ok: true, json: async () => ({}) })
+      : Promise.resolve(responses.shift())))
 
     await expect(createKeyword('uid-1', { keyword: '价格', reply: '可以优惠' })).resolves.toMatchObject({
       id: 7,
@@ -120,39 +129,43 @@ describe('business config API wrappers', () => {
   })
 
   it('unwraps reply, card, delivery, and AI setting envelopes', async () => {
-    vi.stubGlobal('fetch', vi.fn()
-      .mockResolvedValueOnce({
+    const responses = [
+      {
         ok: true,
         json: async () => ({ status: 'ok', itemReply: { id: 11, cookieId: 'uid-1', reply: '默认文字' } }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({ status: 'ok', itemReply: { id: 11, cookieId: 'uid-1', itemId: '100', reply: '商品回复' } }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({ status: 'ok', cards: [{ id: 21, cookieId: '__global__', cardContent: 'CARD-1' }] }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({ status: 'ok', deliveryRule: { id: 31, cookieId: '__global__', itemId: '100', cardPoolTag: 'vip' } }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({ status: 'ok', deliveryRule: { id: 31, cookieId: '__global__', itemId: '101', cardPoolTag: 'vip' } }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({ status: 'ok', settings: { cookieId: '__global__', aiEnabled: true, modelName: 'gpt-test' } }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({ status: 'ok', models: ['gpt-4o-mini', 'gpt-4.1'], endpoint: 'https://api.example.com/v1/models' }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({ status: 'ok', ok: true, message: '连接成功，模型回复：ok', modelName: 'gpt-4o-mini' }),
-      }))
+      },
+    ]
+    vi.stubGlobal('fetch', vi.fn((url) => String(url).includes('/api/logs/client-events')
+      ? Promise.resolve({ ok: true, json: async () => ({}) })
+      : Promise.resolve(responses.shift())))
 
     await expect(createItemReply('uid-1', { reply: '默认文字' })).resolves.toMatchObject({ id: 11, reply: '默认文字' })
     await expect(updateItemReply(11, { itemId: '100' })).resolves.toMatchObject({ id: 11, itemId: '100' })

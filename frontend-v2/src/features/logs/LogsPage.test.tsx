@@ -69,15 +69,11 @@ describe('LogsPage', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '操作审计' }))
+    fireEvent.click(screen.getByRole('button', { name: '操作日志' }))
 
     expect(await screen.findByText('商品发布成功')).toBeTruthy()
     expect(screen.getByText('测试商品')).toBeTruthy()
     expect(apiMocks.getOperationLogs).toHaveBeenCalledWith({
-      module: '',
-      action: '',
-      uid: '',
-      status: '',
       keyword: '',
       limit: 200,
     })

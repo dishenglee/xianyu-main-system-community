@@ -390,6 +390,8 @@ async fn promotion_create_uses_captured_view_then_create_flow_without_local_item
     let app = build_app(AppState::bootstrap(config.clone()).await.unwrap());
     let accounts_pool = connect_pool(&config.sqlite.accounts_db_path).await;
     seed_account(&accounts_pool).await;
+    let xianyu_pool = connect_pool(&config.sqlite.xianyu_db_path).await;
+    seed_item(&xianyu_pool, "uid-growth", "1055797812835").await;
 
     let response = app
         .clone()
@@ -1564,6 +1566,49 @@ async fn growth_super_polish_account_falls_back_to_h5_when_app_transport_is_not_
         &captured,
         "/h5/mtop.taobao.idle.ad.follow.super.polish.account.query/1.0/",
     );
+
+    set_sign_license_context(original_license);
+    let _ = shutdown_tx.send(());
+}
+
+#[tokio::test]
+async fn community_app_request_uses_h5_when_signing_context_is_absent() {
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+    let temp_dir = TempDir::new().unwrap();
+    configure_env(&temp_dir);
+
+    let upstream = UpstreamState::default();
+    let captured = upstream.requests.clone();
+    let (base_url, shutdown_tx) = spawn_upstream(upstream).await;
+    configure_app_transport_env(&base_url);
+    let original_license = get_sign_license_context();
+    set_sign_license_context(None);
+
+    let config = AppConfig::from_env().unwrap();
+    let app = build_app(AppState::bootstrap(config.clone()).await.unwrap());
+    let accounts_pool = connect_pool(&config.sqlite.accounts_db_path).await;
+    seed_account(&accounts_pool).await;
+
+    let response = app
+        .oneshot(with_auth(
+            Request::get("/api/growth/super-polish/account?uid=uid-growth")
+                .body(Body::empty())
+                .unwrap(),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = json_body(response).await;
+    assert_eq!(payload["data"]["usableBalanceOfYuan"], "12.50");
+
+    let captured = captured.lock().unwrap().clone();
+    find_path(
+        &captured,
+        "/h5/mtop.taobao.idle.ad.follow.super.polish.account.query/1.0/",
+    );
+    assert!(!captured.iter().any(|request| {
+        request.path == "/app/mtop.taobao.idle.ad.follow.super.polish.account.query/1.0/"
+    }));
 
     set_sign_license_context(original_license);
     let _ = shutdown_tx.send(());

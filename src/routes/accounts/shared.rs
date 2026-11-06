@@ -131,11 +131,12 @@ async fn send_transport_request_once(
     state: &AppState,
     uid: &str,
     request: &TransportRequest,
+    transport: TransportKind,
 ) -> Result<Value, String> {
     super::runtime_access::ensure_account_can_call_upstream(state, None, uid)
         .await
         .map_err(|error| error.to_string())?;
-    match request.transport {
+    match transport {
         TransportKind::H5 => {
             xianyu_client::h5_request(
                 state.config(),
@@ -179,18 +180,30 @@ pub(crate) async fn request_transport(
     request: &TransportRequest,
     options: TransportRequestOptions,
 ) -> Result<TransportResponse, String> {
-    let first = send_transport_request_once(state, uid, request).await?;
+    let transport = if request.transport == TransportKind::App
+        && crate::license_runtime::get_sign_license_context().is_none()
+    {
+        tracing::debug!(
+            uid = %uid,
+            api = %request.api,
+            "App signing context unavailable; trying the equivalent H5 transport"
+        );
+        TransportKind::H5
+    } else {
+        request.transport
+    };
+    let first = send_transport_request_once(state, uid, request, transport).await?;
     let payload = if classify_mtop_payload(&first).is_auth_recoverable()
         && cookie_refresh::try_repair_business_session(
             state.config(),
             state.storage().accounts(),
             uid,
             &request.api,
-            request.transport.business_transport(),
+            transport.business_transport(),
         )
         .await
     {
-        send_transport_request_once(state, uid, request).await?
+        send_transport_request_once(state, uid, request, transport).await?
     } else {
         first
     };
@@ -203,10 +216,7 @@ pub(crate) async fn request_transport(
             first_ret_string(&payload)
         ));
     }
-    Ok(TransportResponse {
-        transport: request.transport,
-        payload,
-    })
+    Ok(TransportResponse { transport, payload })
 }
 
 pub(crate) fn first_ret_string(payload: &Value) -> String {

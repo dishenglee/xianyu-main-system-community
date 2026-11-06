@@ -20,6 +20,7 @@ async fn market_routes_cover_publish_items_trade_and_upload_baselines() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
     configure_env(&temp_dir);
+    env::set_var("XIANYU_H5_GATEWAY", "http://127.0.0.1:9/h5");
 
     let config = AppConfig::from_env().unwrap();
     let app = build_app(AppState::bootstrap(config.clone()).await.unwrap());
@@ -217,7 +218,19 @@ async fn market_routes_cover_publish_items_trade_and_upload_baselines() {
         )
         .await
         .unwrap();
-    assert_eq!(order_adjust_response.status(), StatusCode::OK);
+    assert_eq!(
+        order_adjust_response.status(),
+        StatusCode::INTERNAL_SERVER_ERROR
+    );
+    let order_after_failed_adjust = sqlx::query_scalar::<_, String>(
+        "SELECT price FROM account_orders WHERE uid = ? AND tid = ?",
+    )
+    .bind("uid-1")
+    .bind("order-1")
+    .fetch_one(&xianyu_pool)
+    .await
+    .unwrap();
+    assert_eq!(order_after_failed_adjust, "88.00");
 
     let order_close_response = app
         .clone()
@@ -237,7 +250,19 @@ async fn market_routes_cover_publish_items_trade_and_upload_baselines() {
         )
         .await
         .unwrap();
-    assert_eq!(order_close_response.status(), StatusCode::OK);
+    assert_eq!(
+        order_close_response.status(),
+        StatusCode::INTERNAL_SERVER_ERROR
+    );
+    let order_status_after_failed_close = sqlx::query_scalar::<_, String>(
+        "SELECT status FROM account_orders WHERE uid = ? AND tid = ?",
+    )
+    .bind("uid-1")
+    .bind("order-1")
+    .fetch_one(&xianyu_pool)
+    .await
+    .unwrap();
+    assert_eq!(order_status_after_failed_close, "WAIT_SELLER_SEND_GOODS");
 
     let upload_response = app
         .clone()
@@ -294,7 +319,7 @@ async fn market_routes_cover_publish_items_trade_and_upload_baselines() {
 }
 
 #[tokio::test]
-async fn ordinary_user_cannot_call_raw_mtop() {
+async fn removed_raw_mtop_route_is_not_exposed_in_community_edition() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
     configure_env(&temp_dir);
@@ -327,7 +352,7 @@ async fn ordinary_user_cannot_call_raw_mtop() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

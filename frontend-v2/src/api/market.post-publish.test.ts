@@ -2,6 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { applyPostPublishExtras, buildRepublishRequest } from './market'
 
+vi.mock('./client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./client')>()),
+  emitClientLog: vi.fn(),
+}))
+
 function ok(payload: any) {
   return {
     ok: true,
@@ -33,19 +38,19 @@ describe('applyPostPublishExtras', () => {
   })
 
   it('syncs and retries when a freshly published item is not yet visible in local cache', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(ok({ ok: true, total: 1, synced_at: 1 }))
-      .mockResolvedValueOnce(fail('商品不存在'))
-      .mockResolvedValueOnce(fail('商品不存在'))
-      .mockResolvedValueOnce(fail('商品不存在'))
-      .mockResolvedValueOnce(ok({ ok: true, total: 1, synced_at: 2 }))
-      .mockResolvedValueOnce(ok({
+    const responses = [
+      ok({ ok: true, total: 1, synced_at: 1 }),
+      fail('商品不存在'),
+      fail('商品不存在'),
+      fail('商品不存在'),
+      ok({ ok: true, total: 1, synced_at: 2 }),
+      ok({
         data: {
           deductionRatioList: [{ ratio: '5' }],
         },
-      }))
-      .mockResolvedValueOnce(ok({ ret: ['SUCCESS::调用成功'] }))
-      .mockResolvedValueOnce(ok({
+      }),
+      ok({ ret: ['SUCCESS::调用成功'] }),
+      ok({
         ret: ['SUCCESS::调用成功'],
         data: {
           drawer: {
@@ -53,16 +58,20 @@ describe('applyPostPublishExtras', () => {
             options: [{ price: '1.00', grouponPrice: '1.00' }],
           },
         },
-      }))
-      .mockResolvedValueOnce(ok({
+      }),
+      ok({
         ret: ['SUCCESS::调用成功'],
         data: {
           guide: {
             grouponPrice: '1.00',
           },
         },
-      }))
-      .mockResolvedValueOnce(ok({ ret: ['SUCCESS::调用成功'] }))
+      }),
+      ok({ ret: ['SUCCESS::调用成功'] }),
+    ]
+    const fetchMock = vi.fn((url) => String(url).includes('/api/logs/client-events')
+      ? Promise.resolve(ok({}))
+      : Promise.resolve(responses.shift()))
     vi.stubGlobal('fetch', fetchMock)
 
     const promise = applyPostPublishExtras({
@@ -89,7 +98,9 @@ describe('applyPostPublishExtras', () => {
       ],
     })
 
-    const urls = fetchMock.mock.calls.map(([url]) => String(url))
+    const urls = fetchMock.mock.calls
+      .map(([url]) => String(url))
+      .filter((url) => !url.includes('/api/logs/client-events'))
     expect(urls.filter((url) => url.includes('/api/items/sync'))).toHaveLength(2)
     expect(urls[0]).toContain('/api/items/sync')
     expect(urls[1]).toContain('/api/coin/deduction/ratio')

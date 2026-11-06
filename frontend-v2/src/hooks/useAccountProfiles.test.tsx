@@ -117,52 +117,13 @@ describe('useAccountProfiles', () => {
     expect(accountProfileMock).toHaveBeenCalledTimes(1)
   })
 
-  it('does not reuse a previous token profile for the same uid', async () => {
-    accountProfileMock
-      .mockResolvedValueOnce({
-        uid: 'same-uid',
-        totalEarned: 100,
-      })
-      .mockReturnValue(new Promise(() => {}))
-
+  it('keeps profile scope on the fixed local identity', () => {
     act(() => {
-      useAuthStore.getState().setAuth('token-a', { username: 'user-a' })
+      useAuthStore.getState().setAuth('legacy-token', { username: 'legacy-user' })
     })
 
-    const tokenAAccounts: Account[] = [{
-      uid: 'same-uid',
-      nick: 'same',
-      status: 'active',
-      totalEarned: 1,
-      summaryCachedAt: 0,
-    }]
-
-    const { result, rerender } = renderHook(
-      ({ accounts }) => useAccountProfiles(accounts, 1),
-      { initialProps: { accounts: tokenAAccounts } },
-    )
-
-    await waitFor(() => {
-      expect(result.current.profiles['same-uid']?.totalEarned).toBe(100)
-    })
-
-    act(() => {
-      useAuthStore.getState().setAuth('token-b', { username: 'user-b' })
-    })
-
-    rerender({
-      accounts: [{
-        uid: 'same-uid',
-        nick: 'same',
-        status: 'active',
-        totalEarned: 2,
-        summaryCachedAt: 0,
-      }],
-    })
-
-    await waitFor(() => {
-      expect(result.current.profiles['same-uid']?.totalEarned).toBe(2)
-    })
+    expect(useAuthStore.getState().token).toBe('local-single-user')
+    expect(useAuthStore.getState().user).toEqual({ username: 'local-app', role: 'admin' })
   })
 
   it('keeps empty profile state stable across fresh empty account arrays', () => {

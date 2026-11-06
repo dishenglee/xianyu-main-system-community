@@ -33,7 +33,7 @@ pub fn router() -> Router<AppState> {
 }
 
 fn owner_username(state: &AppState, identity: &RequestIdentity) -> String {
-    owner_username_filter(state, identity).unwrap_or_else(|| identity.username.clone())
+    owner_username_filter(state, identity).unwrap_or_default()
 }
 
 async fn list_schedules(

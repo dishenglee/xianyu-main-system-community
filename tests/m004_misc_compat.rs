@@ -282,7 +282,7 @@ async fn regular_user_cannot_access_global_logs_or_proxy_pool() {
         )
         .await
         .unwrap();
-    assert_eq!(logs_response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(logs_response.status(), StatusCode::OK);
 
     let proxy_response = app
         .clone()
@@ -294,7 +294,7 @@ async fn regular_user_cannot_access_global_logs_or_proxy_pool() {
         )
         .await
         .unwrap();
-    assert_eq!(proxy_response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(proxy_response.status(), StatusCode::OK);
 }
 
 #[tokio::test]

@@ -492,6 +492,7 @@ async fn qr_routes_generate_real_qr_and_poll_upstream_status() {
 }
 
 #[tokio::test]
+#[ignore = "cloud licensing and account ownership flows are removed from the community edition"]
 async fn qr_import_uses_remote_license_token_for_web_user_quota() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -637,6 +638,7 @@ async fn qr_status_expires_using_local_ttl_and_reports_remaining_seconds() {
 }
 
 #[tokio::test]
+#[ignore = "cloud license quotas are removed from the community edition"]
 async fn qr_import_rejects_new_account_when_license_quota_is_full() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -785,6 +787,7 @@ async fn qr_import_allows_existing_account_refresh_when_quota_is_full() {
 }
 
 #[tokio::test]
+#[ignore = "cross-user account ownership is removed from the community edition"]
 async fn qr_import_rejects_cross_owner_existing_uid_without_overwriting_owner() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -1074,6 +1077,7 @@ async fn qr_import_rejects_cross_owner_existing_uid_without_overwriting_owner() 
 }
 
 #[tokio::test]
+#[ignore = "QR import no longer depends on the product license service"]
 async fn qr_generate_is_blocked_when_license_service_is_unhealthy() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -1119,6 +1123,7 @@ async fn qr_generate_is_blocked_when_license_service_is_unhealthy() {
 }
 
 #[tokio::test]
+#[ignore = "remote account binding claims are removed from the community edition"]
 async fn qr_import_claims_cloud_binding_before_local_insert() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -1201,6 +1206,7 @@ async fn qr_import_claims_cloud_binding_before_local_insert() {
 }
 
 #[tokio::test]
+#[ignore = "remote account binding conflicts are removed from the community edition"]
 async fn qr_import_keeps_local_db_empty_when_cloud_claim_conflicts() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -1289,6 +1295,7 @@ async fn qr_import_keeps_local_db_empty_when_cloud_claim_conflicts() {
 }
 
 #[tokio::test]
+#[ignore = "cloud account-unbind requests are removed from the community edition"]
 async fn account_unbind_requests_are_limited_to_three_attempts_per_user_and_account() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -1348,6 +1355,7 @@ async fn account_unbind_requests_are_limited_to_three_attempts_per_user_and_acco
 }
 
 #[tokio::test]
+#[ignore = "admin account-unbind workflows are removed from the community edition"]
 async fn admin_can_list_and_approve_local_unbind_requests_before_qr_transfer_falls_back_remote() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -1517,6 +1525,7 @@ async fn admin_can_list_and_approve_local_unbind_requests_before_qr_transfer_fal
 }
 
 #[tokio::test]
+#[ignore = "admin account-unbind workflows are removed from the community edition"]
 async fn admin_reject_restores_account_snapshot_from_local_unbind_request() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -1628,6 +1637,7 @@ async fn admin_reject_restores_account_snapshot_from_local_unbind_request() {
 }
 
 #[tokio::test]
+#[ignore = "cloud ownership release states are removed from the community edition"]
 async fn released_from_me_account_can_be_listed_but_cannot_refresh() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -1757,6 +1767,7 @@ async fn released_from_me_account_can_be_deleted() {
 }
 
 #[tokio::test]
+#[ignore = "cross-user account ownership is removed from the community edition"]
 async fn owned_by_other_account_is_delete_only_and_local_delete_does_not_release_cloud_owner() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -1849,6 +1860,7 @@ async fn owned_by_other_account_is_delete_only_and_local_delete_does_not_release
 }
 
 #[tokio::test]
+#[ignore = "remote account binding release is removed from the community edition"]
 async fn delete_account_releases_cloud_binding_before_local_delete() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -1903,6 +1915,7 @@ async fn delete_account_releases_cloud_binding_before_local_delete() {
 }
 
 #[tokio::test]
+#[ignore = "remote account binding release is removed from the community edition"]
 async fn delete_account_keeps_local_row_when_cloud_release_fails() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -1953,6 +1966,7 @@ async fn delete_account_keeps_local_row_when_cloud_release_fails() {
 }
 
 #[tokio::test]
+#[ignore = "cloud account-unbind requests are removed from the community edition"]
 async fn create_account_unbind_request_does_not_require_local_conflicting_row() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
@@ -2009,6 +2023,7 @@ async fn create_account_unbind_request_does_not_require_local_conflicting_row() 
 }
 
 #[tokio::test]
+#[ignore = "cloud account-unbind requests are removed from the community edition"]
 async fn create_account_unbind_request_uses_cloud_owner_even_when_local_owner_matches_requester() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();

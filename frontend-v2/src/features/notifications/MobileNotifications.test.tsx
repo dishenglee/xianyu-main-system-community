@@ -38,6 +38,7 @@ vi.mock('../../hooks/useAccounts', () => ({
 vi.mock('../../api/index', () => apiMocks)
 vi.mock('../../components/Notify', () => ({
   useNotify: () => notifyMock,
+  useSafeNotify: () => notifyMock,
 }))
 vi.mock('../../hooks/useDevice', () => ({
   useDevice: () => ({ isMobile: true, isTablet: false, isDesktop: false, device: 'mobile' }),

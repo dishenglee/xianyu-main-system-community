@@ -37,8 +37,9 @@ describe('createLiveEventHandler', () => {
     vi.clearAllMocks()
   })
 
-  it('emits structured runtime logs for targeted connection and message events', async () => {
+  it('does not include message text in development logs', async () => {
     diagnosticMocks.shouldLogLiveDiagnostics.mockReturnValue(true)
+    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {})
     const { createLiveEventHandler } = await import('./messagesLiveHandler')
 
     const setSessionsByUid = vi.fn((updater) => updater({ uid_1: [] }))
@@ -68,27 +69,11 @@ describe('createLiveEventHandler', () => {
       text: '买家原文不应该直接进日志',
     })
 
-    expect(runtimeMocks.logRuntimeEvent).toHaveBeenCalledTimes(2)
-    expect(runtimeMocks.logRuntimeEvent).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        logger: 'frontend.runtime',
-        module: 'messages-live',
-        action: 'live_connection_event',
-        message: '实时连接事件',
-        context: { matched: true },
-      }),
-    )
-    expect(runtimeMocks.logRuntimeEvent).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        logger: 'frontend.runtime',
-        module: 'messages-live',
-        action: 'live_message_event',
-        message: '实时消息事件',
-        context: { matched: true },
-      }),
-    )
+    expect(consoleLog.mock.calls.flat().join(' ')).not.toContain('买家原文不应该直接进日志')
+    expect(setSessionsByUid).toHaveBeenCalledOnce()
+    expect(setHistoryByKey).toHaveBeenCalledOnce()
+    expect(runtimeMocks.logRuntimeEvent).not.toHaveBeenCalled()
+    consoleLog.mockRestore()
   })
 
   it('stays quiet when the remote diagnostic policy does not match', async () => {

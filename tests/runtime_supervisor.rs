@@ -44,7 +44,7 @@ async fn runtime_supervisor_publishes_worker_status_and_persists_heartbeat() {
     let payload: Value = serde_json::from_slice(&body).unwrap();
     let managers = payload["managers"].as_array().unwrap();
 
-    assert_eq!(managers.len(), 8);
+    assert_eq!(managers.len(), 11);
     assert!(managers
         .iter()
         .any(|manager| manager["name"] == "service_heartbeat"));
@@ -92,7 +92,7 @@ async fn runtime_supervisor_publishes_worker_status_and_persists_heartbeat() {
     .fetch_one(&accounts)
     .await
     .unwrap();
-    assert_eq!(worker_rows, 7);
+    assert_eq!(worker_rows, 10);
 
     supervisor.shutdown_and_wait().await;
     clear_env();
@@ -112,7 +112,7 @@ async fn runtime_supervisor_stops_workers_cleanly() {
     supervisor.shutdown_and_wait().await;
 
     let inspection = state.runtime().inspection(config.service_name.clone());
-    assert_eq!(inspection.managers.len(), 8);
+    assert_eq!(inspection.managers.len(), 11);
     assert!(inspection
         .managers
         .iter()

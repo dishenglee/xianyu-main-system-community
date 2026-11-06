@@ -114,10 +114,7 @@ async fn publish_and_upload_routes_prefer_real_upstream_and_persist_cookies() {
         )
         .await
         .unwrap();
-    assert_eq!(raw_response.status(), StatusCode::OK);
-    let raw_payload = json_body(raw_response).await;
-    assert_eq!(raw_payload["data"]["echo"]["hello"], "world");
-    assert_eq!(raw_payload["data"]["attempt"], 2);
+    assert_eq!(raw_response.status(), StatusCode::NOT_FOUND);
 
     let upload_response = app
         .clone()
@@ -196,18 +193,18 @@ async fn publish_and_upload_routes_prefer_real_upstream_and_persist_cookies() {
     assert!(persisted_cookies.contains("\"_m_h5_tk\":\"retry-token_"));
 
     let captured = upstream.requests.lock().unwrap().clone();
-    let raw_requests = captured
+    let preget_requests = captured
         .iter()
-        .filter(|request| request.path == "/h5/mtop.test.echo/1.0/")
+        .filter(|request| request.path == "/h5/mtop.idle.idleitem.publish.preget/3.0/")
         .collect::<Vec<_>>();
-    assert_eq!(raw_requests.len(), 2);
-    assert!(raw_requests[0].cookie.contains("_m_h5_tk=seed-token_"));
-    assert!(raw_requests[1].cookie.contains("_m_h5_tk=retry-token_"));
+    assert_eq!(preget_requests.len(), 2);
+    assert!(preget_requests[0].cookie.contains("_m_h5_tk=seed-token_"));
+    assert!(preget_requests[1].cookie.contains("_m_h5_tk=retry-token_"));
     assert_eq!(
-        raw_requests[1].query.get("api").map(String::as_str),
-        Some("mtop.test.echo")
+        preget_requests[1].query.get("api").map(String::as_str),
+        Some("mtop.idle.idleitem.publish.preget")
     );
-    assert!(raw_requests[1].query.contains_key("sign"));
+    assert!(preget_requests[1].query.contains_key("sign"));
 
     let upload_requests = captured
         .iter()
@@ -951,11 +948,26 @@ async fn h5_handler(
     });
 
     match path.as_str() {
-        "/h5/mtop.idle.idleitem.publish.preget/3.0/" => axum::Json(json!({
-            "ret": ["SUCCESS::调用成功"],
-            "data": { "categories": ["真实分类"], "draftEnabled": true }
-        }))
-        .into_response(),
+        "/h5/mtop.idle.idleitem.publish.preget/3.0/" => {
+            if cookie.contains("retry-token_") {
+                (
+                    [("set-cookie", "_m_h5_tk=retry-token_1710000000000; Path=/")],
+                    axum::Json(json!({
+                        "ret": ["SUCCESS::调用成功"],
+                        "data": { "categories": ["真实分类"], "draftEnabled": true }
+                    })),
+                )
+                    .into_response()
+            } else {
+                (
+                    [("set-cookie", "_m_h5_tk=retry-token_1710000000000; Path=/")],
+                    axum::Json(json!({
+                        "ret": ["FAIL_SYS_TOKEN_EXPIRED::令牌过期"]
+                    })),
+                )
+                    .into_response()
+            }
+        }
         "/h5/mtop.taobao.idle.item.management.query/1.0/" => axum::Json(json!({
             "ret": ["SUCCESS::调用成功"],
             "data": {
@@ -1130,29 +1142,6 @@ async fn h5_handler(
             "data": { "result": true }
         }))
         .into_response(),
-        "/h5/mtop.test.echo/1.0/" => {
-            if cookie.contains("retry-token_") {
-                (
-                    [("set-cookie", "_m_h5_tk=retry-token_1710000000000; Path=/")],
-                    axum::Json(json!({
-                        "ret": ["SUCCESS::调用成功"],
-                        "data": {
-                            "echo": { "hello": "world" },
-                            "attempt": 2
-                        }
-                    })),
-                )
-                    .into_response()
-            } else {
-                (
-                    [("set-cookie", "_m_h5_tk=retry-token_1710000000000; Path=/")],
-                    axum::Json(json!({
-                        "ret": ["FAIL_SYS_TOKEN_EXPIRED::令牌过期"]
-                    })),
-                )
-                    .into_response()
-            }
-        }
         "/h5/mtop.taobao.idle.trade.sold.get/6.0/" => axum::Json(json!({
             "ret": ["SUCCESS::调用成功"],
             "data": {

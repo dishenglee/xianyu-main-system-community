@@ -652,7 +652,7 @@ async fn notification_binding_round_trip_persists_runtime_metadata() {
 }
 
 #[tokio::test]
-async fn notification_channels_are_scoped_by_logged_in_user() {
+async fn community_notification_channels_share_local_identity() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
     configure_env(&temp_dir);
@@ -679,9 +679,17 @@ async fn notification_channels_are_scoped_by_logged_in_user() {
         .unwrap();
     assert_eq!(list_a.status(), StatusCode::OK);
     let list_a_payload = json_body(list_a).await;
-    assert_eq!(list_a_payload.as_array().map(Vec::len), Some(1));
-    assert_eq!(list_a_payload[0]["id"], user_a_channel);
-    assert_eq!(list_a_payload[0]["owner_username"], "user-a");
+    assert_eq!(list_a_payload.as_array().map(Vec::len), Some(2));
+    assert!(list_a_payload
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|channel| channel["id"] == user_a_channel));
+    assert!(list_a_payload
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|channel| channel["owner_username"] == "local-app"));
 
     let cross_bind = app
         .clone()
@@ -700,7 +708,7 @@ async fn notification_channels_are_scoped_by_logged_in_user() {
         )
         .await
         .unwrap();
-    assert_eq!(cross_bind.status(), StatusCode::NOT_FOUND);
+    assert_eq!(cross_bind.status(), StatusCode::OK);
 
     let cross_channel = app
         .clone()
@@ -719,7 +727,7 @@ async fn notification_channels_are_scoped_by_logged_in_user() {
         )
         .await
         .unwrap();
-    assert_eq!(cross_channel.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(cross_channel.status(), StatusCode::OK);
 
     let bind_a = app
         .clone()
@@ -1169,30 +1177,11 @@ async fn feishu_qr_registration_pending_does_not_create_channel_and_confirmed_up
         ])
     );
 
-    let wrong_owner_response = app
-        .clone()
-        .oneshot(
-            HttpRequest::post("/api/notification-channels/feishu/qr-poll")
-                .header("authorization", format!("Bearer {other_owner_token}"))
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    json!({
-                        "device_code": "device-001",
-                        "domain": "feishu"
-                    })
-                    .to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(wrong_owner_response.status(), StatusCode::FORBIDDEN);
-
     let pending_response = app
         .clone()
         .oneshot(
             HttpRequest::post("/api/notification-channels/feishu/qr-poll")
-                .header("authorization", format!("Bearer {owner_token}"))
+                .header("authorization", format!("Bearer {other_owner_token}"))
                 .header("content-type", "application/json")
                 .body(Body::from(
                     json!({
@@ -1212,7 +1201,7 @@ async fn feishu_qr_registration_pending_does_not_create_channel_and_confirmed_up
     assert_eq!(pending_payload["publish_required"], true);
 
     let pending_channel_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM notification_channels WHERE type = 'feishu' AND owner_username = 'feishu-owner'",
+        "SELECT COUNT(*) FROM notification_channels WHERE type = 'feishu' AND owner_username = 'local-app'",
     )
     .fetch_one(&pool)
     .await
@@ -1241,10 +1230,7 @@ async fn feishu_qr_registration_pending_does_not_create_channel_and_confirmed_up
     assert_eq!(confirmed_payload["status"], "confirmed");
     assert_eq!(confirmed_payload["channel"]["type"], "feishu");
     assert_eq!(confirmed_payload["channel"]["enabled"], true);
-    assert_eq!(
-        confirmed_payload["channel"]["owner_username"],
-        "feishu-owner"
-    );
+    assert_eq!(confirmed_payload["channel"]["owner_username"], "local-app");
     assert_eq!(
         confirmed_payload["channel"]["config"]["app_id"],
         "cli-feishu"
@@ -1297,7 +1283,7 @@ async fn feishu_qr_registration_pending_does_not_create_channel_and_confirmed_up
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(binding.get::<String, _>("owner_username"), "feishu-owner");
+    assert_eq!(binding.get::<String, _>("owner_username"), "local-app");
     assert_eq!(binding.get::<String, _>("sender_id"), "ou_qr_operator");
     assert_eq!(binding.get::<String, _>("role"), "primary");
     assert_eq!(binding.get::<String, _>("joined_via"), "qr_owner");
@@ -1337,7 +1323,7 @@ async fn feishu_qr_registration_pending_does_not_create_channel_and_confirmed_up
     assert_eq!(stored_updated_secret, "sec-updated");
 
     let confirmed_channel_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM notification_channels WHERE type = 'feishu' AND owner_username = 'feishu-owner'",
+        "SELECT COUNT(*) FROM notification_channels WHERE type = 'feishu' AND owner_username = 'local-app'",
     )
     .fetch_one(&pool)
     .await
@@ -1619,7 +1605,7 @@ async fn feishu_qr_registration_creates_second_channel_for_different_bot() {
     assert_eq!(existing_secret, "sec-existing");
 
     let channel_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM notification_channels WHERE type = 'feishu' AND owner_username = 'feishu-owner'",
+        "SELECT COUNT(*) FROM notification_channels WHERE type = 'feishu' AND owner_username = 'local-app'",
     )
     .fetch_one(&pool)
     .await
@@ -1646,7 +1632,7 @@ async fn feishu_qr_registration_native_error_is_bounded_and_redacted() {
         .with_feishu_native(FeishuNativeRuntime::with_transport(Arc::new(transport)));
     state
         .feishu_qr_registrations()
-        .remember("device-err", "feishu-owner", "feishu")
+        .remember("device-err", "local-app", "feishu")
         .await;
     let app = build_app(state);
 
@@ -1783,7 +1769,7 @@ async fn feishu_member_management_routes_list_invite_and_remove_collaborator() {
         .storage()
         .upsert_feishu_user_binding_with_role(
             channel_id,
-            "feishu-owner",
+            "local-app",
             "ou_primary",
             "主用户",
             "oc_primary",
@@ -1802,7 +1788,7 @@ async fn feishu_member_management_routes_list_invite_and_remove_collaborator() {
         .storage()
         .upsert_feishu_user_binding_with_role(
             channel_id,
-            "feishu-owner",
+            "local-app",
             "ou_collab",
             "客服小王",
             "oc_collab",

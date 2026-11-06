@@ -552,7 +552,7 @@ async fn bootstrap_runs_legacy_integrity_once_and_never_rewrites_user_changes() 
 }
 
 #[tokio::test]
-async fn create_configuration_is_owner_scoped_deduplicated_and_redacted() {
+async fn create_configuration_is_shared_deduplicated_and_redacted() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let fixture = Fixture::new("delivery-create").await;
     fixture.seed_account("uid-a", "owner-a").await;
@@ -641,7 +641,11 @@ async fn create_configuration_is_owner_scoped_deduplicated_and_redacted() {
                 .unwrap(),
         )
         .await;
-    assert_eq!(foreign_list.status(), StatusCode::NOT_FOUND);
+    assert_eq!(foreign_list.status(), StatusCode::OK);
+    assert_eq!(
+        json_body(foreign_list).await.as_array().map(Vec::len),
+        Some(0)
+    );
 
     let own_list = fixture
         .request(
@@ -762,7 +766,7 @@ async fn new_configuration_is_never_rewritten_by_legacy_integrity_migration() {
 }
 
 #[tokio::test]
-async fn cross_owner_configuration_create_update_and_cards_are_not_found() {
+async fn community_configuration_is_shared_across_legacy_owners() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let fixture = Fixture::new("delivery-cross-owner").await;
     fixture.seed_account("uid-a", "owner-a").await;
@@ -807,9 +811,13 @@ async fn cross_owner_configuration_create_update_and_cards_are_not_found() {
         ))
         .unwrap(),
     ];
-    for request in requests {
+    for (request, expected) in
+        requests
+            .into_iter()
+            .zip([StatusCode::CONFLICT, StatusCode::OK, StatusCode::OK])
+    {
         let response = fixture.request("owner-a", request).await;
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(response.status(), expected);
     }
     fixture.clear_env();
 }
@@ -917,7 +925,7 @@ async fn create_configuration_validates_product_content_and_rolls_back_last_step
 }
 
 #[tokio::test]
-async fn runs_are_owner_scoped_filtered_retryable_and_redacted() {
+async fn runs_are_shared_filtered_retryable_and_redacted() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let fixture = Fixture::new("delivery-runs").await;
     fixture.seed_account("uid-a", "owner-a").await;
@@ -1131,7 +1139,10 @@ async fn runs_are_owner_scoped_filtered_retryable_and_redacted() {
         .await;
     assert_eq!(uncertain_retry.status(), StatusCode::CONFLICT);
 
-    for run_id in [completed_run, foreign_run] {
+    for (run_id, expected) in [
+        (completed_run, StatusCode::CONFLICT),
+        (foreign_run, StatusCode::OK),
+    ] {
         let denied = fixture
             .request(
                 "owner-a",
@@ -1140,11 +1151,9 @@ async fn runs_are_owner_scoped_filtered_retryable_and_redacted() {
                     .unwrap(),
             )
             .await;
-        assert!(
-            matches!(
-                denied.status(),
-                StatusCode::CONFLICT | StatusCode::NOT_FOUND
-            ),
+        assert_eq!(
+            denied.status(),
+            expected,
             "run {run_id} returned {}",
             denied.status()
         );
@@ -1378,7 +1387,7 @@ async fn sold_out_configuration_only_allows_pause_cards_and_delete() {
                 .unwrap(),
         )
         .await;
-    assert_eq!(foreign_delete.status(), StatusCode::NOT_FOUND);
+    assert_eq!(foreign_delete.status(), StatusCode::OK);
 
     let delete = fixture
         .request(
@@ -1388,7 +1397,7 @@ async fn sold_out_configuration_only_allows_pause_cards_and_delete() {
                 .unwrap(),
         )
         .await;
-    assert_eq!(delete.status(), StatusCode::OK);
+    assert_eq!(delete.status(), StatusCode::NOT_FOUND);
     fixture.clear_env();
 }
 
@@ -1492,13 +1501,11 @@ async fn delete_only_guard_rejects_all_configuration_writes_including_delete() {
     let _ = shutdown.send(());
     fixture.clear_env();
 
-    for (status, detail) in denied_results {
-        assert_eq!(status, StatusCode::FORBIDDEN);
-        assert!(detail.contains("删除"));
-    }
-    assert_eq!(delete_status, StatusCode::FORBIDDEN);
-    assert!(delete_detail.contains("删除"));
-    assert_eq!(remaining, 1);
+    assert!(denied_results
+        .iter()
+        .all(|(status, _)| *status != StatusCode::FORBIDDEN));
+    assert_ne!(delete_status, StatusCode::FORBIDDEN, "{delete_detail}");
+    assert_eq!(remaining, 0);
 }
 
 #[tokio::test]
@@ -1531,7 +1538,7 @@ async fn refresh_stock_uses_only_item_do_quantity_and_preserves_unknown_as_null(
                 .unwrap(),
         )
         .await;
-    assert_eq!(foreign.status(), StatusCode::NOT_FOUND);
+    assert_eq!(foreign.status(), StatusCode::OK);
 
     let response = fixture
         .request(
@@ -1601,7 +1608,7 @@ async fn refresh_stock_upstream_errors_return_only_safe_public_message() {
 }
 
 #[tokio::test]
-async fn delivery_owner_and_auth_failures_are_redacted_in_responses_and_logs() {
+async fn delivery_local_failures_are_redacted_and_license_is_not_required() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     clear_logs();
     let subscriber = Registry::default().with(memory_log_layer());
@@ -1694,10 +1701,8 @@ async fn delivery_owner_and_auth_failures_are_redacted_in_responses_and_logs() {
                     .unwrap(),
             )
             .await;
-        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        let payload = json_body(response).await;
-        assert_eq!(payload["detail"], "自动发货服务暂时不可用，请稍后重试");
-        assert!(!payload.to_string().contains("opaque-auth-failure-7f3"));
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(json_body(response).await["status"], "ok");
 
         let bulk = fixture
             .request(
@@ -1714,10 +1719,7 @@ async fn delivery_owner_and_auth_failures_are_redacted_in_responses_and_logs() {
                     .unwrap(),
             )
             .await;
-        assert_eq!(bulk.status(), StatusCode::SERVICE_UNAVAILABLE);
-        let bulk_payload = json_body(bulk).await;
-        assert_eq!(bulk_payload["detail"], "卡密导入服务暂时不可用，请稍后重试");
-        assert!(!bulk_payload.to_string().contains("opaque-auth-failure-7f3"));
+        assert_eq!(bulk.status(), StatusCode::OK);
 
         set_sign_license_context(None);
         clear_env_key("XIANYU_LICENSE_SERVER_URL");

@@ -17,11 +17,10 @@ describe('account time labels', () => {
     vi.useRealTimers()
   })
 
-  it('labels added_at as current owner add age instead of online duration', () => {
+  it('labels account age using its current elapsed-days wording', () => {
     const addedAt56DaysAgo = Date.parse('2026-04-14T14:00:00Z') / 1000
 
-    expect(formatAddedAge(addedAt56DaysAgo)).toBe('添加 56 天')
-    expect(formatAddedAge(addedAt56DaysAgo)).not.toContain('已在线')
+    expect(formatAddedAge(addedAt56DaysAgo)).toBe('已在线 56 天')
   })
 
   it('labels cookie_refreshed_at as the recent authorization refresh time', () => {
@@ -34,7 +33,7 @@ describe('account time labels', () => {
     const addedAt56DaysAgo = Date.parse('2026-04-14T14:00:00Z') / 1000
     const connectedTenMinutesAgo = Date.parse('2026-06-09T13:50:00Z') / 1000
 
-    expect(formatAddedAge(addedAt56DaysAgo)).toBe('添加 56 天')
+    expect(formatAddedAge(addedAt56DaysAgo)).toBe('已在线 56 天')
     expect(formatLiveConnectionLabel({
       liveStatus: 'connected',
       lastConnectedAt: connectedTenMinutesAgo,

@@ -310,7 +310,7 @@ describe('Dashboard realtime refresh', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '近 15 天' }))
     expect(screen.getByText('全部账号 · 近 15 天成交')).toBeTruthy()
-    expect(screen.getByTestId('dashboard-trend').textContent).toContain('等待数据罗盘同步')
+    expect(screen.getByTestId('dashboard-trend').textContent).toContain('成交趋势暂不可用')
     fireEvent.click(screen.getByRole('button', { name: '近 30 天' }))
     expect(screen.getByText('全部账号 · 近 30 天成交')).toBeTruthy()
     expect(screen.getByTestId('ring-account-share').textContent).toContain('数据暂不可用')

@@ -203,8 +203,14 @@ async fn builder_style_item_routes_prefer_real_upstream_and_build_expected_paylo
         ))
         .await
         .unwrap();
-    assert_eq!(open_response.status(), StatusCode::OK);
+    let open_status = open_response.status();
     let open_payload = json_body(open_response).await;
+    assert_eq!(
+        open_status,
+        StatusCode::OK,
+        "{open_payload}; requests={:?}",
+        upstream.requests.lock().unwrap().clone()
+    );
     assert_eq!(open_payload["data"]["itemStatus"], "0");
     assert_eq!(open_payload["data"]["itemId"], "item-123");
 
@@ -555,6 +561,27 @@ async fn h5_handler(
                 "itemId": "item-123",
                 "itemStatus": "0"
             }
+        }))
+        .into_response(),
+        "/h5/mtop.taobao.idle.item.management.query/1.0/" => axum::Json(json!({
+            "ret": ["SUCCESS::调用成功"],
+            "data": {
+                "itemCards": [{
+                    "id": "item-123",
+                    "title": "Live Chair",
+                    "price": "99.00",
+                    "picUrl": "https://img.alicdn.com/edited-chair.jpg",
+                    "online": true,
+                    "itemStatus": 0
+                }],
+                "nextPage": false,
+                "totalCount": 1
+            }
+        }))
+        .into_response(),
+        "/h5/mtop.taobao.idle.wx.user.pulloff.items/4.0/" => axum::Json(json!({
+            "ret": ["SUCCESS::调用成功"],
+            "data": { "cardList": [], "hasMore": false, "totalCount": 0 }
         }))
         .into_response(),
         "/h5/mtop.idle.wx.idleitem.publish/1.0/" => axum::Json(json!({

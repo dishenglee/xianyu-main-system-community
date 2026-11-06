@@ -103,7 +103,7 @@ describe('createLiveTransport', () => {
       expect(runtimeProfileMocks.buildBackendWsUrl).toHaveBeenCalledWith('/api/live/ws')
       expect(FakeWebSocket.instances).toHaveLength(1)
     })
-    expect(FakeWebSocket.instances[0].url).toBe('ws://127.0.0.1:64797/api/live/ws?token=user-jwt')
+    expect(FakeWebSocket.instances[0].url).toBe('ws://127.0.0.1:64797/api/live/ws')
 
     const socket = FakeWebSocket.instances[0]
     socket.readyState = FakeWebSocket.OPEN

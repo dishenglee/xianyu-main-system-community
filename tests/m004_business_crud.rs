@@ -17,7 +17,7 @@ static ENV_LOCK: Mutex<()> = Mutex::new(());
 const TEST_BEARER: &str = "m004-business-crud";
 
 #[tokio::test]
-async fn regular_user_business_global_scope_does_not_read_legacy_admin_configuration() {
+async fn community_business_scope_shares_legacy_global_configuration() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
     configure_env(&temp_dir);
@@ -27,6 +27,8 @@ async fn regular_user_business_global_scope_does_not_read_legacy_admin_configura
     let user_token = encode_access_token(&config.auth, "17452146585", "user", false).unwrap();
     let state = AppState::bootstrap(config.clone()).await.unwrap();
     let accounts_pool = connect_accounts_pool(&config).await;
+    let xianyu_pool = connect_xianyu_pool(&config).await;
+    seed_item(&xianyu_pool, "admin-owned-uid", "admin-item").await;
 
     sqlx::query(
         r#"
@@ -94,8 +96,15 @@ async fn regular_user_business_global_scope_does_not_read_legacy_admin_configura
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{path}");
         let payload = json_body(response).await;
-        assert_eq!(payload.as_array().map(Vec::len), Some(0), "{path}");
+        assert_eq!(payload.as_array().map(Vec::len), Some(1), "{path}");
     }
+
+    sqlx::query(
+        "INSERT INTO cards (cookie_id, card_key, card_content, card_pool_tag, reusable, used, created_at) VALUES ('__global__', 'ADMIN-CARD-2', 'admin-card-content-2', 'admin-pool', 1, 0, 1)",
+    )
+    .execute(&accounts_pool)
+    .await
+    .unwrap();
 
     let ai_response = app
         .clone()
@@ -109,11 +118,9 @@ async fn regular_user_business_global_scope_does_not_read_legacy_admin_configura
         .unwrap();
     assert_eq!(ai_response.status(), StatusCode::OK);
     let ai_payload = json_body(ai_response).await;
-    assert!(ai_payload
-        .as_object()
-        .is_some_and(|object| object.is_empty()));
+    assert_eq!(ai_payload["apiKey"], "sk-admin");
 
-    let denied_account_scope = app
+    let local_account_scope = app
         .clone()
         .oneshot(
             Request::get("/api/keywords/admin-owned-uid")
@@ -123,7 +130,7 @@ async fn regular_user_business_global_scope_does_not_read_legacy_admin_configura
         )
         .await
         .unwrap();
-    assert_eq!(denied_account_scope.status(), StatusCode::NOT_FOUND);
+    assert_eq!(local_account_scope.status(), StatusCode::OK);
 
     for request in [
         Request::put(format!("/api/keywords/{admin_keyword_id}"))
@@ -159,7 +166,9 @@ async fn regular_user_business_global_scope_does_not_read_legacy_admin_configura
             .unwrap(),
     ] {
         let response = app.clone().oneshot(request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let status = response.status();
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
     }
 
     let create_user_global = app
@@ -245,21 +254,21 @@ async fn regular_user_business_global_scope_does_not_read_legacy_admin_configura
             .fetch_one(&accounts_pool)
             .await
             .unwrap();
-    assert_ne!(stored_user_global_cookie_id, "__global__");
+    assert_eq!(stored_user_global_cookie_id, "__global__");
 
     let stored_user_global_item_reply_cookie_id: String =
         sqlx::query_scalar("SELECT cookie_id FROM item_replies WHERE reply = 'user-default-reply'")
             .fetch_one(&accounts_pool)
             .await
             .unwrap();
-    assert_ne!(stored_user_global_item_reply_cookie_id, "__global__");
+    assert_eq!(stored_user_global_item_reply_cookie_id, "__global__");
 
     clear_env();
     clear_env_key("ADMIN_USERNAME");
 }
 
 #[tokio::test]
-async fn admin_named_user_business_scope_is_not_legacy_admin_scope() {
+async fn community_business_scope_does_not_split_identity_by_auth_headers() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();
     configure_env(&temp_dir);
@@ -290,7 +299,8 @@ async fn admin_named_user_business_scope_is_not_legacy_admin_scope() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let payload = json_body(response).await;
-    assert_eq!(payload.as_array().map(Vec::len), Some(0));
+    assert_eq!(payload.as_array().map(Vec::len), Some(1));
+    assert_eq!(payload[0]["keyword"], "legacy-admin-keyword");
 
     let create_response = app
         .clone()
@@ -318,7 +328,7 @@ async fn admin_named_user_business_scope_is_not_legacy_admin_scope() {
             .fetch_one(&accounts_pool)
             .await
             .unwrap();
-    assert_ne!(stored_cookie_id, "__global__");
+    assert_eq!(stored_cookie_id, "__global__");
 
     clear_env();
     clear_env_key("ADMIN_USERNAME");

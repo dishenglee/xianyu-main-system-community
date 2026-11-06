@@ -57,9 +57,8 @@ for arg in "$@"; do
   esac
 done
 
-# Keep the established test runtime, including its own activated test
-# identity. A parent shell can legitimately carry APP_DATA_DIR for another
-# App instance, so test startup must never inherit that generic variable.
+# Keep the isolated test runtime. A parent shell can legitimately carry
+# APP_DATA_DIR for another App instance, so startup must not inherit it.
 DEFAULT_APP_DATA_DIR="$HOME/Library/Application Support/shop.gooofish.yuguanjia.test.$APP_RUNTIME_MODE"
 APP_DATA_DIR="${XIANYU_TEST_APP_DATA_DIR:-$DEFAULT_APP_DATA_DIR}"
 APP_BINARY="$REPO_ROOT/target/debug/xianyu-tauri"

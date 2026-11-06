@@ -58,7 +58,7 @@ export function createLiveEventHandler({
 
     devLog(
       '[live-handler] message event', type, 'uid=', uid,
-      'session=', event.sessionId, 'text=', event.text?.slice(0, 20),
+      'session=', event.sessionId,
     )
 
     setSessionsByUid((prev) => {

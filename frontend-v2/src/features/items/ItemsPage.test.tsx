@@ -85,6 +85,7 @@ import { KnifeSheet } from './mobile/ItemSheets'
 describe('ItemsPage publish flow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    apiMocks.syncItems.mockReset()
     accountStoreMock.accounts = [...defaultAccounts]
     apiMocks.itemAllList.mockResolvedValue({
       _last_synced_at: 0,
@@ -929,7 +930,7 @@ describe('ItemsPage publish flow', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText('小刀·¥15.00')).toBeTruthy()
+    expect(await screen.findByTitle('2人小刀 ¥15.00')).toBeTruthy()
   })
 
   it('shows 不开 in the summary area when the close option is selected', async () => {
@@ -1141,8 +1142,11 @@ describe('ItemsPage publish flow', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存并上架' }))
 
     await waitFor(() => {
-      expect(screen.queryByText('重新上架缓存商品')).toBeNull()
+      expect(apiMocks.republishItemWithDetail).toHaveBeenCalledTimes(1)
+      expect(apiMocks.syncItems).toHaveBeenCalledTimes(1)
+      expect(apiMocks.itemAllList).toHaveBeenCalledTimes(2)
       expect(apiMocks.itemSoldOutList).toHaveBeenCalledTimes(2)
+      expect(screen.queryByText('重新上架缓存商品')).toBeNull()
     })
   })
 

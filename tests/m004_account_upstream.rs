@@ -132,7 +132,7 @@ async fn account_summary_force_fetches_real_upstream_and_persists_metrics() {
         .iter()
         .any(|request| request.path == "/api/licenses/runtime-challenge"));
     assert!(captured.iter().any(|request| request.path == "/sign"));
-    assert!(captured
+    assert!(!captured
         .iter()
         .any(|request| request.path == "/api/me/xianyu-account-bindings/resolve"));
     assert!(captured

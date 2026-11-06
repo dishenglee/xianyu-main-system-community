@@ -46,6 +46,7 @@ const { apiMocks, accountStoreMock, clientMocks, marketMocks, notifyMock } = vi.
   },
   clientMocks: {
     getAuthToken: vi.fn(() => 'token-a'),
+    emitClientLog: vi.fn(),
   },
   marketMocks: {
     getItems: vi.fn(),

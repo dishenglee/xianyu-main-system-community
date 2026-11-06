@@ -226,7 +226,6 @@ pub async fn run_server(config: AppConfig) -> Result<ServerHandle, BootstrapErro
     let state = AppState::bootstrap(config).await?;
     let runtime_supervisor = state.start_runtime_supervisor();
     spawn_initial_startup_dependency_check(state.clone(), service_name.clone());
-    startup_preflight::spawn_startup_dependency_watchdog(state.clone());
     spawn_control_plane_log_sync(state.clone());
 
     // Spawn listener-backed notification workers through the unified manager

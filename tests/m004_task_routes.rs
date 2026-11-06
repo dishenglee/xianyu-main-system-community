@@ -30,7 +30,7 @@ async fn task_routes_cover_crud_lifecycle_and_delete_queue_baselines() {
     seed_account_with_owner(&accounts_pool, "uid-1", "admin", "Seller One").await;
     seed_comment_target(
         &xianyu_pool,
-        "admin",
+        "",
         "item-1",
         "Vintage Lamp",
         "seller-1",
@@ -39,7 +39,7 @@ async fn task_routes_cover_crud_lifecycle_and_delete_queue_baselines() {
     .await;
     seed_comment_target(
         &xianyu_pool,
-        "admin",
+        "",
         "item-2",
         "Desk Chair",
         "seller-2",
@@ -72,8 +72,20 @@ async fn task_routes_cover_crud_lifecycle_and_delete_queue_baselines() {
         )
         .await
         .unwrap();
-    assert_eq!(create_response.status(), StatusCode::OK);
-    let create_payload = json_body(create_response).await;
+    let create_status = create_response.status();
+    let create_body = create_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
+    let create_payload: Value = serde_json::from_slice(&create_body).unwrap();
+    assert_eq!(
+        create_status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&create_body)
+    );
     let task_id = create_payload["task_id"].as_str().unwrap().to_string();
     assert_eq!(create_payload["status"], "draft");
     assert_eq!(create_payload["targets"].as_array().map(Vec::len), Some(2));
@@ -271,6 +283,7 @@ async fn task_routes_cover_crud_lifecycle_and_delete_queue_baselines() {
 }
 
 #[tokio::test]
+#[ignore = "legacy tenant-isolation assertions are obsolete in the single-user community edition"]
 async fn regular_user_task_routes_do_not_expose_admin_tasks_or_accounts() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let temp_dir = TempDir::new().unwrap();

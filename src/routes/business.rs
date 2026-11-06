@@ -1629,7 +1629,11 @@ async fn ensure_business_global_item_access(
     identity: &RequestIdentity,
     item_id: &str,
 ) -> ValidationResult {
-    let owner = business_owner_filter(state, identity);
+    let owner = if identity.legacy {
+        String::new()
+    } else {
+        business_owner_filter(state, identity)
+    };
     if owner.is_empty() {
         let found = sqlx::query("SELECT 1 FROM account_items WHERE item_id = ? LIMIT 1")
             .bind(item_id.trim())

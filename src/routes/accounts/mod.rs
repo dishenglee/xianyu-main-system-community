@@ -134,26 +134,6 @@ pub fn router() -> Router<AppState> {
             post(refresh_account),
         )
         .route(
-            crate::sealed_protocol::sealed_str!("/accounts/unbind-requests"),
-            post(create_account_unbind_request),
-        )
-        .route(
-            crate::sealed_protocol::sealed_str!("/admin/account-unbind-requests"),
-            get(list_account_unbind_requests),
-        )
-        .route(
-            crate::sealed_protocol::sealed_str!(
-                "/admin/account-unbind-requests/:request_id/approve"
-            ),
-            post(approve_account_unbind_request),
-        )
-        .route(
-            crate::sealed_protocol::sealed_str!(
-                "/admin/account-unbind-requests/:request_id/reject"
-            ),
-            post(reject_account_unbind_request),
-        )
-        .route(
             crate::sealed_protocol::sealed_str!("/accounts/refresh-all"),
             post(refresh_all_accounts),
         )

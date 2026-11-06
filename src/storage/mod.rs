@@ -562,6 +562,7 @@ async fn connect_and_migrate(
 
     if migrations_relative == "migrations/xianyu" {
         ensure_comment_task_schema(&pool).await?;
+        normalize_xianyu_owners(&pool).await?;
     }
 
     if migrations_relative == "migrations/notifications" {
@@ -699,6 +700,11 @@ async fn ensure_accounts_compat_schema(pool: &Pool<Sqlite>) -> Result<(), Storag
     )
     .execute(pool)
     .await?;
+    sqlx::query(
+        "UPDATE accounts SET owner_username = 'local-app' WHERE COALESCE(owner_username, '') <> 'local-app'",
+    )
+    .execute(pool)
+    .await?;
     finalize_delivery_configuration_integrity(pool).await?;
     Ok(())
 }
@@ -833,6 +839,201 @@ async fn ensure_notifications_tenant_schema(pool: &Pool<Sqlite>) -> Result<(), S
     )
     .execute(pool)
     .await?;
+    normalize_notification_owners(pool).await?;
+    Ok(())
+}
+
+async fn normalize_xianyu_owners(pool: &Pool<Sqlite>) -> Result<(), StorageError> {
+    // Consolidate duplicate rows before moving legacy tenant keys into the local namespace.
+    sqlx::query(
+        r#"
+        UPDATE comment_library AS keep
+        SET usage_count = (
+                SELECT SUM(source.usage_count)
+                FROM comment_library AS source
+                WHERE source.content_hash = keep.content_hash
+            ),
+            success_count = (
+                SELECT SUM(source.success_count)
+                FROM comment_library AS source
+                WHERE source.content_hash = keep.content_hash
+            ),
+            last_used_at = (
+                SELECT MAX(source.last_used_at)
+                FROM comment_library AS source
+                WHERE source.content_hash = keep.content_hash
+            )
+        WHERE keep.rowid = (
+            SELECT rowid
+            FROM comment_library AS latest
+            WHERE latest.content_hash = keep.content_hash
+            ORDER BY latest.updated_at DESC, latest.id DESC
+            LIMIT 1
+        )
+        "#,
+    )
+    .execute(pool)
+    .await?;
+    for statement in [
+        r#"
+        DELETE FROM comment_targets
+        WHERE rowid NOT IN (
+            SELECT rowid
+            FROM comment_targets AS keep
+            WHERE keep.item_id = comment_targets.item_id
+            ORDER BY keep.updated_at DESC, keep.rowid DESC
+            LIMIT 1
+        )
+        "#,
+        r#"
+        DELETE FROM comment_library
+        WHERE rowid NOT IN (
+            SELECT rowid
+            FROM comment_library AS keep
+            WHERE keep.content_hash = comment_library.content_hash
+            ORDER BY keep.updated_at DESC, keep.id DESC
+            LIMIT 1
+        )
+        "#,
+    ] {
+        sqlx::query(statement).execute(pool).await?;
+    }
+
+    for table in ["comment_targets", "comment_library", "automation_schedules"] {
+        sqlx::query(&format!(
+            "UPDATE {table} SET owner_username = '' WHERE COALESCE(owner_username, '') <> ''"
+        ))
+        .execute(pool)
+        .await?;
+    }
+    normalize_peer_monitor_owners(pool).await?;
+    Ok(())
+}
+
+async fn normalize_peer_monitor_owners(pool: &Pool<Sqlite>) -> Result<(), StorageError> {
+    sqlx::query(
+        r#"
+        DELETE FROM peer_monitor_item_snapshots AS snapshot
+        WHERE EXISTS (
+            SELECT 1
+            FROM peer_monitor_targets AS old_target
+            WHERE old_target.id = snapshot.target_id
+              AND EXISTS (
+                  SELECT 1
+                  FROM peer_monitor_targets AS winner
+                  WHERE winner.seller_id = old_target.seller_id
+                    AND (winner.updated_at > old_target.updated_at
+                         OR (winner.updated_at = old_target.updated_at AND winner.id > old_target.id))
+              )
+              AND EXISTS (
+                  SELECT 1
+                  FROM peer_monitor_targets AS winner
+                  JOIN peer_monitor_item_snapshots AS winner_snapshot
+                    ON winner_snapshot.target_id = winner.id
+                   AND winner_snapshot.item_id = snapshot.item_id
+                  WHERE winner.seller_id = old_target.seller_id
+                    AND (winner.updated_at > old_target.updated_at
+                         OR (winner.updated_at = old_target.updated_at AND winner.id > old_target.id))
+              )
+        )
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    for table in [
+        "peer_monitor_item_snapshots",
+        "peer_monitor_events",
+        "peer_monitor_runs",
+    ] {
+        let query = format!(
+            r#"
+            UPDATE {table}
+            SET target_id = (
+                SELECT winner.id
+                FROM peer_monitor_targets AS old_target
+                JOIN peer_monitor_targets AS winner
+                  ON winner.seller_id = old_target.seller_id
+                WHERE old_target.id = {table}.target_id
+                ORDER BY winner.updated_at DESC, winner.id DESC
+                LIMIT 1
+            )
+            WHERE target_id IN (
+                SELECT old_target.id
+                FROM peer_monitor_targets AS old_target
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM peer_monitor_targets AS winner
+                    WHERE winner.seller_id = old_target.seller_id
+                      AND (winner.updated_at > old_target.updated_at
+                           OR (winner.updated_at = old_target.updated_at AND winner.id > old_target.id))
+                )
+            )
+            "#
+        );
+        sqlx::query(&query).execute(pool).await?;
+    }
+
+    sqlx::query(
+        r#"
+        DELETE FROM peer_monitor_targets AS old_target
+        WHERE EXISTS (
+            SELECT 1
+            FROM peer_monitor_targets AS winner
+            WHERE winner.seller_id = old_target.seller_id
+              AND (winner.updated_at > old_target.updated_at
+                   OR (winner.updated_at = old_target.updated_at AND winner.id > old_target.id))
+        )
+        "#,
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "UPDATE peer_monitor_targets SET owner_username = '__legacy__' WHERE owner_username <> '__legacy__'",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn normalize_notification_owners(pool: &Pool<Sqlite>) -> Result<(), StorageError> {
+    // Older local databases may still carry product-login owner keys.
+    sqlx::query(
+        r#"
+        DELETE FROM feishu_operator_activity
+        WHERE rowid NOT IN (
+            SELECT rowid
+            FROM feishu_operator_activity AS keep
+            WHERE keep.channel_id = feishu_operator_activity.channel_id
+              AND keep.sender_id = feishu_operator_activity.sender_id
+            ORDER BY keep.rowid DESC
+            LIMIT 1
+        )
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    let tables = sqlx::query(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+    )
+    .fetch_all(pool)
+    .await?;
+    for row in tables {
+        let table: String = row.get("name");
+        let escaped = table.replace('"', "\"\"");
+        let pragma = format!("PRAGMA table_info(\"{escaped}\")");
+        let columns = sqlx::query(&pragma).fetch_all(pool).await?;
+        if columns
+            .iter()
+            .any(|column| column.get::<String, _>("name") == "owner_username")
+        {
+            let update = format!(
+                "UPDATE \"{escaped}\" SET owner_username = 'local-app' WHERE COALESCE(owner_username, '') <> 'local-app'"
+            );
+            sqlx::query(&update).execute(pool).await?;
+        }
+    }
     Ok(())
 }
 
@@ -1031,6 +1232,208 @@ mod tests {
             .await
             .unwrap();
         assert!(!accounts_migration_requires_compat(&pool, 24).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn notification_owner_keys_are_collapsed_to_the_local_identity() {
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query(
+            "CREATE TABLE notification_channels (id INTEGER PRIMARY KEY, owner_username TEXT NOT NULL)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE feishu_operator_activity (id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, owner_username TEXT NOT NULL, sender_id TEXT NOT NULL, UNIQUE(channel_id, owner_username, sender_id))",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO notification_channels VALUES (1, 'former-user')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO feishu_operator_activity VALUES (1, 1, 'former-user', 'ou_primary')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO feishu_operator_activity VALUES (2, 1, 'local-app', 'ou_primary')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        normalize_notification_owners(&pool).await.unwrap();
+
+        let channel_owner: String =
+            sqlx::query_scalar("SELECT owner_username FROM notification_channels WHERE id = 1")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let activity_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM feishu_operator_activity")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(channel_owner, "local-app");
+        assert_eq!(activity_count, 1);
+    }
+
+    #[tokio::test]
+    async fn xianyu_owner_keys_are_collapsed_without_duplicate_unique_rows() {
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query(
+            "CREATE TABLE comment_targets (owner_username TEXT NOT NULL, item_id TEXT NOT NULL, updated_at REAL NOT NULL, title TEXT NOT NULL, PRIMARY KEY(owner_username, item_id))",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE comment_library (id INTEGER PRIMARY KEY, owner_username TEXT NOT NULL, content_hash TEXT NOT NULL, updated_at REAL NOT NULL, usage_count INTEGER NOT NULL, success_count INTEGER NOT NULL, last_used_at REAL NOT NULL, UNIQUE(owner_username, content_hash))",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE automation_schedules (id TEXT PRIMARY KEY, owner_username TEXT NOT NULL)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE peer_monitor_targets (id INTEGER PRIMARY KEY, owner_username TEXT NOT NULL, seller_id TEXT NOT NULL, updated_at REAL NOT NULL)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("CREATE TABLE peer_monitor_item_snapshots (id INTEGER PRIMARY KEY, target_id INTEGER NOT NULL, item_id TEXT NOT NULL)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "CREATE TABLE peer_monitor_events (id INTEGER PRIMARY KEY, target_id INTEGER NOT NULL)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE peer_monitor_runs (id INTEGER PRIMARY KEY, target_id INTEGER NOT NULL)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO comment_targets VALUES ('old-a', 'item-1', 1, '旧标题'), ('old-b', 'item-1', 2, '新标题')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO comment_library VALUES (1, 'old-a', 'hash', 1, 2, 1, 5), (2, 'old-b', 'hash', 2, 4, 3, 7)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO automation_schedules VALUES ('schedule-1', 'old-a')")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        normalize_xianyu_owners(&pool).await.unwrap();
+
+        let target: (String, String) = sqlx::query_as(
+            "SELECT owner_username, title FROM comment_targets WHERE item_id = 'item-1'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let library: (String, i64) = sqlx::query_as(
+            "SELECT owner_username, usage_count FROM comment_library WHERE content_hash = 'hash'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let schedule_owner: String = sqlx::query_scalar(
+            "SELECT owner_username FROM automation_schedules WHERE id = 'schedule-1'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(target, (String::new(), "新标题".to_string()));
+        assert_eq!(library, (String::new(), 6));
+        assert_eq!(schedule_owner, "");
+    }
+
+    #[tokio::test]
+    async fn peer_monitor_history_is_merged_when_owners_collapse() {
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query(
+            "CREATE TABLE peer_monitor_targets (id INTEGER PRIMARY KEY, owner_username TEXT NOT NULL, seller_id TEXT NOT NULL, updated_at REAL NOT NULL)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE peer_monitor_item_snapshots (id INTEGER PRIMARY KEY, target_id INTEGER NOT NULL, item_id TEXT NOT NULL, UNIQUE(target_id, item_id))",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE peer_monitor_events (id INTEGER PRIMARY KEY, target_id INTEGER NOT NULL)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE peer_monitor_runs (id INTEGER PRIMARY KEY, target_id INTEGER NOT NULL)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO peer_monitor_targets VALUES (1, 'former-user-a', 'seller-1', 1), (2, 'former-user-b', 'seller-1', 2)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO peer_monitor_item_snapshots VALUES (1, 1, 'item-a'), (2, 2, 'item-a'), (3, 1, 'item-b')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO peer_monitor_events VALUES (1, 1), (2, 2)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO peer_monitor_runs VALUES (1, 1), (2, 2)")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        normalize_peer_monitor_owners(&pool).await.unwrap();
+
+        let target: (String, i64) = sqlx::query_as(
+            "SELECT owner_username, COUNT(*) FROM peer_monitor_targets GROUP BY owner_username",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let item_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM peer_monitor_item_snapshots")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let event_targets: i64 =
+            sqlx::query_scalar("SELECT COUNT(DISTINCT target_id) FROM peer_monitor_events")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let run_targets: i64 =
+            sqlx::query_scalar("SELECT COUNT(DISTINCT target_id) FROM peer_monitor_runs")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(target, ("__legacy__".to_string(), 1));
+        assert_eq!(item_count, 2);
+        assert_eq!(event_targets, 1);
+        assert_eq!(run_targets, 1);
     }
 }
 
